@@ -98,7 +98,7 @@ h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px
 #copy { min-height: 48px; padding-inline: 22px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font: 700 16px var(--f-body); cursor: pointer; }
 [hidden] { display: none !important; }
 .view { display: flex; flex-direction: column; gap: 14px; }
-.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 .tabs button { min-height: 44px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 700 15px var(--f-body); cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -132,11 +132,21 @@ h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px
 .track { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .fill { height: 100%; width: 0; background: var(--accent); border-radius: 4px; }
 .linkbtn { min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent); font: 500 13px var(--f-body); text-align: left; text-decoration: underline; cursor: pointer; }
-.notice { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding-block: 2px; border-bottom: 1px solid var(--line); }
+.notice { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; align-items: center; gap: 8px; padding-block: 2px; border-bottom: 1px solid var(--line); }
 .notice:last-child { border-bottom: 0; }
 .ntext { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 10px; min-height: 44px; padding-block: 10px; cursor: pointer; overflow-wrap: anywhere; }
 .ntext input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
 .notice.done .ntext span { text-decoration: line-through; color: var(--muted); }
+.notice.pinned .ntext span { font-weight: 700; }
+.pin { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; }
+.pin[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.man { border-bottom: 1px solid var(--line); }
+.man:last-of-type { border-bottom: 0; }
+.man summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
+.man .mbody { margin: 0 0 8px; font-size: 15px; line-height: 1.7; }
+.man .recbtns { margin-bottom: 8px; }
+.mform { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mform .note { margin-top: 0; }
 .addrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 8px; }
 .pnote { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-size: 14px; line-height: 1.6; }
 .pnote b { display: block; margin-bottom: 4px; }
@@ -174,6 +184,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   <nav class="tabs" role="tablist" aria-label="화면 전환">
     <button type="button" role="tab" id="tab-report" aria-selected="true" aria-controls="view-report">인수인계</button>
     <button type="button" role="tab" id="tab-cal" aria-selected="false" aria-controls="view-cal">달력</button>
+    <button type="button" role="tab" id="tab-man" aria-selected="false" aria-controls="view-man">매뉴얼</button>
   </nav>
   <div id="view-report" class="view">
     <div id="app" class="view"></div>
@@ -183,6 +194,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     </div>
     <pre class="receipt" id="preview" aria-label="카톡으로 보낼 글 미리보기"></pre>
     <button type="button" class="reset" id="reset">새 근무 시작</button>
+  </div>
+  <div id="view-man" class="view" hidden>
+    <section class="sheet" id="manualBox"></section>
+    <p class="calstatus" id="manStatus" role="status" aria-live="polite"></p>
   </div>
   <div id="view-cal" class="view" hidden>
     <section class="sheet" id="cal"></section>
@@ -239,6 +254,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       repFuture: true,
       ov: {},
       notices: [],
+      manual: [],
+      readNext: {},
       cold: {},
       tasks: { d: '', done: {} }
     };
@@ -327,7 +344,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       const p = JSON.parse(raw), f = fresh();
       Object.keys(f).forEach(function (k) { if (p[k] !== undefined) f[k] = p[k]; });
       if (f.coins.length === COINS.length && f.gift.length === GIFT.length && f.giftSold.length === GIFT.length && f.bags.length === BAGS.length && f.stickers.length === STICKERS.length) S = f;
-      else { S.history = f.history || {}; S.wage = f.wage; S.ov = f.ov; S.notices = f.notices; S.me = f.me; S.repFuture = f.repFuture; S.cold = f.cold; }
+      else { S.history = f.history || {}; S.wage = f.wage; S.ov = f.ov; S.notices = f.notices; S.manual = f.manual; S.readNext = f.readNext; S.me = f.me; S.repFuture = f.repFuture; S.cold = f.cold; }
     }
   } catch (e) {}
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -517,7 +534,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     } else if (b.id === 'noticeAdd') {
       addNotice();
     } else if (b.id === 'noticeClear') {
-      S.notices = S.notices.filter(function (n) { return !n.done; });
+      S.notices = S.notices.filter(function (n) { return !n.done || n.pin; });
+      save(); renderNotices();
+    } else if (b.dataset.npin) {
+      const nn = S.notices[Number(b.dataset.npin)];
+      nn.pin = !nn.pin; nn.done = false;
       save(); renderNotices();
     } else if (b.dataset.ndel) {
       S.notices.splice(Number(b.dataset.ndel), 1);
@@ -556,7 +577,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     }
   });
   app.addEventListener('change', function (e) {
-    if (e.target.dataset.nchk !== undefined) {
+    if (e.target.dataset.nread !== undefined) {
+      S.readNext[e.target.dataset.nread] = e.target.checked;
+      save();
+    } else if (e.target.dataset.nchk !== undefined) {
       S.notices[Number(e.target.dataset.nchk)].done = e.target.checked;
       save(); renderNotices();
     } else if (e.target.id === 'coldTime') {
@@ -674,18 +698,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   function renderNotices() {
     const box = document.getElementById('noticeList');
     if (!box) return;
-    const open = S.notices.filter(function (n) { return !n.done; }).length;
-    document.getElementById('noticeCnt').textContent = S.notices.length ? open + '개 남음' : '';
-    document.getElementById('noticeClear').hidden = !S.notices.some(function (n) { return n.done; });
-    box.innerHTML = S.notices.length ? S.notices.map(function (n, i) {
-      return '<div class="notice' + (n.done ? ' done' : '') + '"><label class="ntext"><input type="checkbox" data-nchk="' + i + '"' + (n.done ? ' checked' : '') + '><span>' + esc(n.t) + '</span></label>' +
+    const open = S.notices.filter(function (n) { return !n.pin && !n.done; }).length;
+    const pins = S.notices.filter(function (n) { return n.pin; }).length;
+    document.getElementById('noticeCnt').textContent = S.notices.length ? (pins ? '고정 ' + pins + ' · ' : '') + open + '개 남음' : '';
+    document.getElementById('noticeClear').hidden = !S.notices.some(function (n) { return n.done && !n.pin; });
+    const order = S.notices.map(function (n, i) { return i; }).sort(function (a, b) { return (S.notices[b].pin ? 1 : 0) - (S.notices[a].pin ? 1 : 0) || a - b; });
+    box.innerHTML = S.notices.length ? order.map(function (i) {
+      const n = S.notices[i];
+      return '<div class="notice' + (n.pin ? ' pinned' : n.done ? ' done' : '') + '"><label class="ntext">' +
+        (n.pin ? '<span aria-hidden="true">📌</span>' : '<input type="checkbox" data-nchk="' + i + '"' + (n.done ? ' checked' : '') + '>') +
+        '<span>' + esc(n.t) + '</span></label>' +
+        '<button type="button" class="pin" data-npin="' + i + '" aria-pressed="' + (n.pin ? 'true' : 'false') + '" aria-label="' + (n.pin ? '고정 해제' : '위에 고정') + '">📌</button>' +
         '<button type="button" class="rm" data-ndel="' + i + '" aria-label="전달 사항 지우기">×</button></div>';
-    }).join('') : '<p class="none">카톡으로 받은 전달 사항을 적어두면 계속 위에 남아 있어요.</p>';
+    }).join('') : '<p class="none">폐기 규칙처럼 계속 봐야 하는 건 📌로 고정해 두세요. 고정한 글은 항상 맨 위에 남아요.</p>';
   }
   function addNotice() {
     const inp = document.getElementById('noticeIn'), t = inp.value.trim();
     if (!t) return;
-    S.notices.push({ t: t, done: false });
+    S.notices.push({ t: t, done: false, pin: false });
     inp.value = '';
     save(); renderNotices();
     inp.focus();
@@ -711,7 +741,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     const pv = prevRecord();
     const h = '<div class="sh"><h2>지난 근무와 비교</h2><span class="tot">' + (pv ? dayLabel(pv.k) + ' 기록' : '') + '</span></div>';
     if (!pv) { box.innerHTML = h + '<p class="none">비교할 지난 기록이 없어요. 오늘 글을 복사해 두면 다음 근무부터 비교해 줘요.</p>'; return; }
-    const pnHtml = pv.r.next ? '<div class="pnote"><b>지난 근무자가 남긴 인수인계</b><p>' + esc(pv.r.next).replace(/\n/g, '<br>') + '</p></div>' : '';
+    const rd = !!(S.readNext && S.readNext[pv.k]);
+    const pnHtml = pv.r.next ? '<div class="pnote"><b>지난 근무자가 남긴 인수인계</b><p>' + esc(pv.r.next).replace(/\n/g, '<br>') + '</p>' +
+      '<label class="chk" style="margin-top:6px"><input type="checkbox" data-nread="' + pv.k + '"' + (rd ? ' checked' : '') + '> 읽었어요</label></div>' : '';
     let rows = '', flags = '';
     function row(lab, a, b, unit) {
       if (a === b) return;
@@ -985,7 +1017,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 
   const bkBox = document.getElementById('bkBox');
   document.getElementById('bkCopy').addEventListener('click', function () {
-    const j = JSON.stringify({ v: 4, history: S.history, ov: S.ov, wage: S.wage, notices: S.notices, me: S.me, repFuture: S.repFuture, cold: S.cold });
+    const j = JSON.stringify({ v: 4, history: S.history, ov: S.ov, wage: S.wage, notices: S.notices, manual: S.manual, readNext: S.readNext, me: S.me, repFuture: S.repFuture, cold: S.cold });
     bkBox.value = j;
     const fb = function () { bkBox.focus(); bkBox.select(); say('백업 글이 선택됐어요. 길게 눌러 복사하세요.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(j).then(function () { say('백업을 복사했어요. 메모장이나 카톡 나에게 보내기에 붙여넣어 두세요.'); }, fb);
@@ -1021,28 +1053,70 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       if (o.me && typeof o.me.name === 'string') S.me = { name: o.me.name, no: String(o.me.no || '') };
       if (typeof o.repFuture === 'boolean') S.repFuture = o.repFuture;
       if (Array.isArray(o.notices)) {
-        S.notices = o.notices.filter(function (x) { return x && typeof x.t === 'string'; }).map(function (x) { return { t: x.t, done: !!x.done }; });
+        S.notices = o.notices.filter(function (x) { return x && typeof x.t === 'string'; }).map(function (x) { return { t: x.t, done: !!x.done, pin: !!x.pin }; });
       }
-      save(); renderCal(); renderNotices(); tick();
+      if (Array.isArray(o.manual)) {
+        S.manual = o.manual.filter(function (x) { return x && typeof x.t === 'string' && typeof x.b === 'string'; }).map(function (x) { return { t: x.t, b: x.b }; });
+      }
+      if (o.readNext && typeof o.readNext === 'object') S.readNext = o.readNext;
+      save(); renderCal(); renderNotices(); renderManual(); tick();
       say(n + '일치 기록과 설정을 불러왔어요.');
     } catch (err) {
       say('백업 글을 읽지 못했어요. 복사한 내용 전체를 붙여넣었는지 확인하세요.');
     }
   });
 
-  const tabR = document.getElementById('tab-report'), tabC = document.getElementById('tab-cal');
+  const tabR = document.getElementById('tab-report'), tabC = document.getElementById('tab-cal'), tabM = document.getElementById('tab-man');
+  /* ---- 업무 매뉴얼 ---- */
+  let manEdit = -1;
+  function manSay(m) { document.getElementById('manStatus').textContent = m; }
+  function renderManual() {
+    const box = document.getElementById('manualBox');
+    if (!box) return;
+    const cur = manEdit >= 0 ? S.manual[manEdit] : null;
+    let h = '<div class="sh"><h2>업무 매뉴얼</h2><span class="tot">' + (S.manual.length ? S.manual.length + '개' : '') + '</span></div>';
+    h += S.manual.length ? S.manual.map(function (m, i) {
+      return '<details class="man"><summary>' + esc(m.t) + '</summary><p class="mbody">' + esc(m.b).replace(/\n/g, '<br>') + '</p>' +
+        '<div class="recbtns"><button type="button" class="reset" data-medit="' + i + '">수정</button><button type="button" class="reset" data-mdel="' + i + '">삭제</button></div></details>';
+    }).join('') : '<p class="none">택배 접수, 상품권 판매처럼 자주 묻는 방법을 한 번 적어 두면 계속 꺼내 볼 수 있어요.</p>';
+    h += '<div class="mform"><input class="rowin" id="manT" placeholder="제목 (예: 택배 접수)" aria-label="매뉴얼 제목" autocomplete="off" value="' + esc(cur ? cur.t : '') + '">' +
+      '<textarea class="note" id="manB" placeholder="방법을 순서대로 적어요" aria-label="매뉴얼 내용">' + esc(cur ? cur.b : '') + '</textarea>' +
+      '<div class="recbtns"><button type="button" class="reset" id="manSave">' + (cur ? '수정 저장' : '매뉴얼 추가') + '</button>' + (cur ? '<button type="button" class="reset" id="manCancel">취소</button>' : '') + '</div></div>';
+    box.innerHTML = h;
+  }
+  document.getElementById('view-man').addEventListener('click', function (e) {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'manSave') {
+      const t = document.getElementById('manT').value.trim(), body = document.getElementById('manB').value.trim();
+      if (!t || !body) { manSay('제목과 내용을 모두 적어 주세요.'); return; }
+      if (manEdit >= 0) S.manual[manEdit] = { t: t, b: body }; else S.manual.push({ t: t, b: body });
+      manEdit = -1; save(); renderManual(); manSay('매뉴얼을 저장했어요.');
+    } else if (b.id === 'manCancel') {
+      manEdit = -1; renderManual();
+    } else if (b.dataset.medit !== undefined) {
+      manEdit = Number(b.dataset.medit); renderManual();
+      document.getElementById('manT').focus();
+    } else if (b.dataset.mdel !== undefined) {
+      S.manual.splice(Number(b.dataset.mdel), 1); manEdit = -1; save(); renderManual();
+    }
+  });
   function showTab(which) {
-    const cal = which === 'cal';
-    document.getElementById('view-report').hidden = cal;
+    const cal = which === 'cal', man = which === 'man';
+    document.getElementById('view-report').hidden = cal || man;
     document.getElementById('view-cal').hidden = !cal;
-    document.querySelector('.bar').hidden = cal;
-    tabR.setAttribute('aria-selected', String(!cal));
+    document.getElementById('view-man').hidden = !man;
+    document.querySelector('.bar').hidden = cal || man;
+    tabR.setAttribute('aria-selected', String(!cal && !man));
     tabC.setAttribute('aria-selected', String(cal));
+    tabM.setAttribute('aria-selected', String(man));
     if (cal) renderCal();
+    if (man) renderManual();
     window.scrollTo(0, 0);
   }
   tabR.addEventListener('click', function () { showTab('report'); });
   tabC.addEventListener('click', function () { showTab('cal'); });
+  tabM.addEventListener('click', function () { showTab('man'); });
 
   document.getElementById('today').textContent = shiftDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
   build();
