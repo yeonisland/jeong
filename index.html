@@ -98,8 +98,26 @@ h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px
 #copy { min-height: 48px; padding-inline: 22px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font: 700 16px var(--f-body); cursor: pointer; }
 [hidden] { display: none !important; }
 .view { display: flex; flex-direction: column; gap: 14px; }
-.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-.tabs button { min-height: 44px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 700 15px var(--f-body); cursor: pointer; }
+.tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.tabs button { min-height: 44px; padding: 0 2px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 700 14px var(--f-body); cursor: pointer; }
+.bdg { display: inline-block; min-width: 18px; margin-left: 3px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 12px; line-height: 18px; }
+.expban { padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; background: var(--surface); color: var(--warn); font-size: 14px; font-weight: 700; }
+.expban button { margin-left: 8px; }
+.ex { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ex:last-child { border-bottom: 0; }
+.exh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.exh b { font-size: 16px; }
+.exd { font: 700 13px var(--f-mono); white-space: nowrap; }
+.ex.g0 .exd, .ex.g1 .exd { color: var(--warn); }
+.ex.g2 .exd { color: var(--accent); }
+.exm { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.exb { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.exb .reset { min-height: 44px; }
+.exb .rm { min-width: 44px; margin-left: auto; }
+.exgrid .rowin, #exName { width: 100%; box-sizing: border-box; }
+.exgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.exsum { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0 0; font-size: 14px; }
+.exsum b { font-family: var(--f-mono); }
 .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cal-head strong { font-family: var(--f-display); font-weight: 400; font-size: 21px; }
@@ -191,8 +209,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     <button type="button" role="tab" id="tab-report" aria-selected="true" aria-controls="view-report">인수인계</button>
     <button type="button" role="tab" id="tab-cal" aria-selected="false" aria-controls="view-cal">달력</button>
     <button type="button" role="tab" id="tab-man" aria-selected="false" aria-controls="view-man">매뉴얼</button>
+    <button type="button" role="tab" id="tab-exp" aria-selected="false" aria-controls="view-exp">소비기한<span id="expBdg"></span></button>
     <button type="button" role="tab" id="tab-set" aria-selected="false" aria-controls="view-set">설정</button>
   </nav>
+  <div class="expban" id="expBanner" role="status" hidden></div>
   <div id="view-report" class="view">
     <div id="app" class="view"></div>
     <div class="preview-head">
@@ -205,6 +225,27 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   <div id="view-man" class="view" hidden>
     <section class="sheet" id="manualBox"></section>
     <p class="calstatus" id="manStatus" role="status" aria-live="polite"></p>
+  </div>
+  <div id="view-exp" class="view" hidden>
+    <section class="sheet">
+      <div class="sh"><h2>소비기한 추가</h2></div>
+      <div class="mform">
+        <input class="rowin" id="exName" list="exNames" placeholder="상품명 (예: 참치김밥)" aria-label="상품명" autocomplete="off">
+        <datalist id="exNames"></datalist>
+        <div class="exgrid">
+          <label class="fld">소비기한<input class="rowin" type="date" id="exDate"></label>
+          <label class="fld">시각(선택)<input class="rowin" type="time" id="exTime"></label>
+          <label class="fld">물류 입고일<input class="rowin" type="date" id="exIn"></label>
+          <label class="fld">수량(선택)<input class="rowin num" id="exQty" inputmode="numeric" placeholder="예: 3"></label>
+        </div>
+        <div class="recbtns"><button type="button" class="reset" id="exAdd">추가</button></div>
+      </div>
+    </section>
+    <section class="sheet" id="expSum"></section>
+    <div id="expList" class="view"></div>
+    <section class="sheet" id="expDone"></section>
+    <section class="sheet" id="expCfg"></section>
+    <p class="calstatus" id="expStatus" role="status" aria-live="polite"></p>
   </div>
   <div id="view-set" class="view" hidden>
     <section class="sheet" id="setBox"></section>
@@ -249,7 +290,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   const SECTIONS = [
     ['notices', '점장님 전달 사항'], ['tasks', '오늘 할 일'], ['coins', '동전'], ['gift', '문화상품권 재고'], ['giftSold', '문화상품권 판매'],
     ['cig', '담배 보루 판매'], ['bags', '종량제 봉투 판매'], ['stickers', '폐기물 스티커 판매'], ['transfer', '계좌이체'], ['refund', '부분환불'],
-    ['note', '특이사항'], ['next', '다음 근무자에게'], ['compare', '지난 근무와 비교']
+    ['note', '특이사항'], ['next', '다음 근무자에게'], ['compare', '지난 근무와 비교'], ['expiry', '소비기한 탭']
   ];
   function defCfg() { return { hide: {}, bags: BAGS.slice(), stickers: STICKERS.slice(), custom: [] }; }
 
@@ -272,6 +313,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       ov: {},
       cfg: defCfg(),
       cc: {},
+      exp: [],
+      expCfg: { times: ['20:30', '22:30'], fired: {} },
       notices: [],
       manual: [],
       readNext: {},
@@ -364,7 +407,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       Object.keys(f).forEach(function (k) { if (p[k] !== undefined) f[k] = p[k]; });
       applyCfg(f.cfg);
       if (f.coins.length === COINS.length && f.gift.length === GIFT.length && f.giftSold.length === GIFT.length && f.bags.length === BAGS.length && f.stickers.length === STICKERS.length) S = f;
-      else { S.history = f.history || {}; S.wage = f.wage; S.ov = f.ov; S.notices = f.notices; S.manual = f.manual; S.readNext = f.readNext; S.cfg = f.cfg; S.cc = f.cc; S.bags = BAGS.map(function () { return 0; }); S.stickers = STICKERS.map(function () { return 0; }); S.me = f.me; S.repFuture = f.repFuture; S.cold = f.cold; }
+      else { S.history = f.history || {}; S.wage = f.wage; S.ov = f.ov; S.notices = f.notices; S.manual = f.manual; S.readNext = f.readNext; S.cfg = f.cfg; S.cc = f.cc; S.exp = f.exp; S.expCfg = f.expCfg; S.bags = BAGS.map(function () { return 0; }); S.stickers = STICKERS.map(function () { return 0; }); S.me = f.me; S.repFuture = f.repFuture; S.cold = f.cold; }
     }
   } catch (e) {}
   function applyCfg(c) {
@@ -1105,7 +1148,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 
   const bkBox = document.getElementById('bkBox');
   document.getElementById('bkCopy').addEventListener('click', function () {
-    const j = JSON.stringify({ v: 4, history: S.history, ov: S.ov, wage: S.wage, notices: S.notices, manual: S.manual, readNext: S.readNext, cfg: S.cfg, me: S.me, repFuture: S.repFuture, cold: S.cold });
+    const j = JSON.stringify({ v: 4, history: S.history, ov: S.ov, wage: S.wage, notices: S.notices, manual: S.manual, readNext: S.readNext, cfg: S.cfg, exp: S.exp, expCfg: { times: S.expCfg.times }, me: S.me, repFuture: S.repFuture, cold: S.cold });
     bkBox.value = j;
     const fb = function () { bkBox.focus(); bkBox.select(); say('백업 글이 선택됐어요. 길게 눌러 복사하세요.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(j).then(function () { say('백업을 복사했어요. 메모장이나 카톡 나에게 보내기에 붙여넣어 두세요.'); }, fb);
@@ -1147,6 +1190,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
         S.manual = o.manual.filter(function (x) { return x && typeof x.t === 'string' && typeof x.b === 'string'; }).map(function (x) { return { t: x.t, b: x.b }; });
       }
       if (o.readNext && typeof o.readNext === 'object') S.readNext = o.readNext;
+      if (Array.isArray(o.exp)) {
+        S.exp = o.exp.filter(function (x) { return x && typeof x.n === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.d || ''); }).map(function (x, k) {
+          return { id: String(x.id || 'e' + k), n: x.n, d: x.d, t: typeof x.t === 'string' ? x.t : '', in: typeof x.in === 'string' ? x.in : '', q: typeof x.q === 'string' ? x.q : '', chk: Array.isArray(x.chk) ? x.chk.filter(function (m) { return typeof m === 'number'; }) : [], done: !!x.done };
+        });
+      }
+      if (o.expCfg && Array.isArray(o.expCfg.times)) {
+        S.expCfg.times = o.expCfg.times.filter(function (t) { return /^\d{2}:\d{2}$/.test(t); });
+      }
       if (o.cfg && typeof o.cfg === 'object' && Array.isArray(o.cfg.bags) && Array.isArray(o.cfg.stickers)) {
         S.cfg = {
           hide: (o.cfg.hide && typeof o.cfg.hide === 'object') ? o.cfg.hide : {},
@@ -1160,14 +1211,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
         S.cc = {};
         build(); refresh();
       }
-      save(); renderCal(); renderNotices(); renderManual(); tick();
+      save(); renderCal(); renderNotices(); renderManual(); renderExp(); applyTabs(); tick();
       say(n + '일치 기록과 설정을 불러왔어요.');
     } catch (err) {
       say('백업 글을 읽지 못했어요. 복사한 내용 전체를 붙여넣었는지 확인하세요.');
     }
   });
 
-  const tabR = document.getElementById('tab-report'), tabC = document.getElementById('tab-cal'), tabM = document.getElementById('tab-man'), tabS = document.getElementById('tab-set');
+  const tabR = document.getElementById('tab-report'), tabC = document.getElementById('tab-cal'), tabM = document.getElementById('tab-man'), tabS = document.getElementById('tab-set'), tabE = document.getElementById('tab-exp');
   /* ---- 업무 매뉴얼 ---- */
   let manEdit = -1;
   function manSay(m) { document.getElementById('manStatus').textContent = m; }
@@ -1202,6 +1253,134 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       S.manual.splice(Number(b.dataset.mdel), 1); manEdit = -1; save(); renderManual();
     }
   });
+  /* ---- 소비기한 관리 ---- */
+  const EXG = ['지난 상품 · 폐기 대상', '오늘까지', '내일까지', '3일 이내', '그 이후'];
+  function pdate(key) { const p = key.split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
+  function expDays(it) { return Math.round((pdate(it.d) - pdate(todayKey())) / 86400000); }
+  function expAt(it) {
+    const p = it.d.split('-'), t = (it.t || '23:59').split(':');
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), Number(t[0]), Number(t[1])).getTime();
+  }
+  function expGroup(it) { const d = expDays(it); return d < 0 ? 0 : d === 0 ? 1 : d === 1 ? 2 : d <= 3 ? 3 : 4; }
+  function checkedToday(it) { return (it.chk || []).some(function (ms) { return ymd(new Date(ms - 5 * 3600000)) === todayKey(); }); }
+  function shortDate(key) { return Number(key.split('-')[1]) + '/' + Number(key.split('-')[2]) + ' (' + DAYS[keyDow(key)] + ')'; }
+  function hhmm(ms) { const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function expSay(m) { document.getElementById('expStatus').textContent = m; }
+  function expItemHtml(it, g) {
+    const d = expDays(it);
+    let badge = d < 0 ? '기한 ' + (-d) + '일 지남' : d === 0 ? '오늘' : d === 1 ? '내일' : 'D-' + d;
+    if (d === 0 && it.t && Date.now() > expAt(it)) badge = '시간 지남';
+    const last = (it.chk || []).length ? it.chk[it.chk.length - 1] : 0;
+    const st = checkedToday(it) ? '오늘 확인 ' + hhmm(last) + ' · 총 ' + it.chk.length + '회' : (it.chk || []).length ? '오늘 미확인 · 마지막 ' + shortDate(ymd(new Date(last - 5 * 3600000))) + ' ' + hhmm(last) : '아직 확인 안 함';
+    return '<div class="ex g' + g + '"><div class="exh"><b>' + esc(it.n) + (it.q ? ' × ' + esc(it.q) : '') + '</b><span class="exd">' + badge + '</span></div>' +
+      '<p class="exm">소비기한 ' + shortDate(it.d) + (it.t ? ' ' + it.t : '') + (it.in ? ' · 입고 ' + shortDate(it.in) : '') + '</p>' +
+      '<p class="exm">' + st + '</p>' +
+      '<div class="exb"><button type="button" class="reset" data-echk="' + it.id + '">확인했어요</button>' +
+      (checkedToday(it) ? '<button type="button" class="linkbtn" data-eundo="' + it.id + '">확인 취소</button>' : '') +
+      '<label class="chk"><input type="checkbox" data-edone="' + it.id + '"> 폐기·처리 완료</label>' +
+      '<button type="button" class="rm" data-edel="' + it.id + '" aria-label="' + esc(it.n) + ' 지우기">×</button></div></div>';
+  }
+  function renderExp() {
+    const list = document.getElementById('expList');
+    if (!list) return;
+    const act = S.exp.filter(function (x) { return !x.done; }).sort(function (a, b) { return expAt(a) - expAt(b); });
+    const cnt = [0, 0, 0, 0, 0];
+    act.forEach(function (x) { cnt[expGroup(x)]++; });
+    const unchecked = act.filter(function (x) { return expDays(x) <= 1 && !checkedToday(x); }).length;
+    document.getElementById('expSum').innerHTML = '<div class="sh"><h2>오늘 확인 현황</h2><span class="tot">' + act.length + '개 관리 중</span></div>' +
+      (act.length ? '<p class="exsum">' + EXG.slice(0, 4).map(function (n, i) { return '<span>' + n.replace(' · 폐기 대상', '') + ' <b>' + cnt[i] + '</b></span>'; }).join('') + '</p>' +
+      '<p class="exm">' + (unchecked ? '오늘·내일 기한인데 아직 확인 안 한 상품이 ' + unchecked + '개 있어요.' : '오늘 확인이 필요한 상품은 모두 확인했어요.') + '</p>' : '<p class="none">아직 등록한 상품이 없어요. 위에서 상품명과 소비기한을 넣으면 기한이 빠른 순서대로 정리돼요.</p>');
+    list.innerHTML = EXG.map(function (name, g) {
+      const items = act.filter(function (x) { return expGroup(x) === g; });
+      if (!items.length) return '';
+      return '<section class="sheet"><div class="sh"><h2>' + name + '</h2><span class="tot">' + items.length + '개</span></div>' + items.map(function (x) { return expItemHtml(x, g); }).join('') + '</section>';
+    }).join('');
+    const done = S.exp.filter(function (x) { return x.done; });
+    document.getElementById('expDone').innerHTML = done.length ? '<details><summary class="linkbtn">처리 완료 ' + done.length + '개 보기</summary>' + done.map(function (x) {
+      return '<div class="ex"><div class="exh"><b>' + esc(x.n) + '</b><span class="exd">' + shortDate(x.d) + '</span></div><div class="exb"><label class="chk"><input type="checkbox" data-edone="' + x.id + '" checked> 처리 완료</label><button type="button" class="rm" data-edel="' + x.id + '" aria-label="' + esc(x.n) + ' 지우기">×</button></div></div>';
+    }).join('') + '<button type="button" class="add" id="exClear">처리 완료 모두 지우기</button></details>' : '';
+    const names = []; S.exp.forEach(function (x) { if (names.indexOf(x.n) < 0) names.push(x.n); });
+    document.getElementById('exNames').innerHTML = names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join('');
+    const canNotify = typeof window.Notification === 'function';
+    document.getElementById('expCfg').innerHTML = '<div class="sh"><h2>확인 알림 시간</h2></div><div class="chips">' + S.expCfg.times.map(function (t, i) {
+      return '<span class="chip">' + t + '<button type="button" data-etdel="' + i + '" aria-label="' + t + ' 알림 빼기">×</button></span>';
+    }).join('') + '</div><div class="addrow"><input class="rowin" type="time" id="exTimeIn" aria-label="알림 시간 추가"><button type="button" class="reset" id="exTimeAdd">추가</button></div>' +
+      (canNotify && Notification.permission === 'default' ? '<button type="button" class="add" id="exPerm">브라우저 알림 허용하기</button>' : '') +
+      '<p class="none">이 앱을 열어 둔 상태에서만 알려줘요. 화면 위에 안내가 뜨고, 알림을 허용하면 팝업과 진동도 와요. 앱을 닫아 두면 못 울리니 중요한 시간은 폰 알람도 함께 맞춰 두세요.</p>';
+    expTick();
+  }
+  let expBdgN = -1;
+  function expNotify(msg) {
+    try { if (typeof window.Notification === 'function' && Notification.permission === 'granted') new Notification('소비기한 확인', { body: msg }); } catch (e) {}
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+  }
+  function expTick() {
+    const tk = todayKey();
+    Object.keys(S.expCfg.fired).forEach(function (k) { if (k.indexOf(tk) !== 0) delete S.expCfg.fired[k]; });
+    const urgent = S.exp.filter(function (x) { return !x.done && expDays(x) <= 1; });
+    const n = urgent.filter(function (x) { return !checkedToday(x); }).length;
+    if (n !== expBdgN) { expBdgN = n; document.getElementById('expBdg').innerHTML = n ? '<span class="bdg">' + n + '</span>' : ''; }
+    const nm = nowMin(), ban = document.getElementById('expBanner');
+    let due = null;
+    S.expCfg.times.forEach(function (t) {
+      const m = coldMin(t);
+      if (m !== null && nm >= m && nm < m + 30 && (!due || m > due.m)) due = { t: t, m: m };
+    });
+    let pending = [];
+    if (due) {
+      const alarmMs = Date.now() - (nm - due.m) * 60000;
+      pending = urgent.filter(function (x) { return !(x.chk || []).some(function (ms) { return ms >= alarmMs; }); });
+      const key = tk + ' ' + due.t;
+      if (!S.expCfg.fired[key]) {
+        S.expCfg.fired[key] = 1; save();
+        if (pending.length) expNotify(due.t + ' 소비기한 확인 시간이에요. 확인할 상품 ' + pending.length + '개');
+      }
+    }
+    if (due && pending.length && on('expiry')) {
+      ban.hidden = false;
+      ban.innerHTML = due.t + ' 소비기한 확인 시간이에요 · 확인할 상품 ' + pending.length + '개 <button type="button" class="reset" id="expGo">보러 가기</button>';
+    } else ban.hidden = true;
+  }
+  document.getElementById('expBanner').addEventListener('click', function (e) { if (e.target.id === 'expGo') showTab('exp'); });
+  document.getElementById('view-exp').addEventListener('click', function (e) {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const find = function (id) { return S.exp.filter(function (x) { return x.id === id; })[0]; };
+    if (b.id === 'exAdd') {
+      const n = document.getElementById('exName').value.trim(), d = document.getElementById('exDate').value;
+      if (!n || !d) { expSay('상품명과 소비기한을 넣어 주세요.'); return; }
+      S.exp.push({ id: 'e' + Date.now() + Math.floor(Math.random() * 1000), n: n, d: d, t: document.getElementById('exTime').value, in: document.getElementById('exIn').value, q: digits(document.getElementById('exQty').value), chk: [], done: false });
+      document.getElementById('exName').value = ''; document.getElementById('exQty').value = ''; document.getElementById('exTime').value = '';
+      expSay(n + ' 추가했어요.'); save(); renderExp();
+      document.getElementById('exName').focus();
+    } else if (b.dataset.echk) {
+      const it = find(b.dataset.echk); it.chk.push(Date.now()); save(); renderExp();
+    } else if (b.dataset.eundo) {
+      const it = find(b.dataset.eundo); it.chk.pop(); save(); renderExp();
+    } else if (b.dataset.edel) {
+      S.exp = S.exp.filter(function (x) { return x.id !== b.dataset.edel; }); save(); renderExp();
+    } else if (b.id === 'exClear') {
+      S.exp = S.exp.filter(function (x) { return !x.done; }); save(); renderExp();
+    } else if (b.dataset.etdel) {
+      S.expCfg.times.splice(Number(b.dataset.etdel), 1); save(); renderExp();
+    } else if (b.id === 'exTimeAdd') {
+      const v = document.getElementById('exTimeIn').value;
+      if (!v || S.expCfg.times.indexOf(v) >= 0) return;
+      S.expCfg.times.push(v); S.expCfg.times.sort(); save(); renderExp();
+    } else if (b.id === 'exPerm') {
+      try { Notification.requestPermission().then(function () { renderExp(); }); } catch (err) { expSay('이 브라우저에서는 알림을 허용할 수 없어요.'); }
+    }
+  });
+  document.getElementById('view-exp').addEventListener('change', function (e) {
+    if (e.target.dataset.edone) {
+      const it = S.exp.filter(function (x) { return x.id === e.target.dataset.edone; })[0];
+      if (it) { it.done = e.target.checked; save(); renderExp(); }
+    }
+  });
+  function initExpForm() {
+    document.getElementById('exDate').value = todayKey();
+    document.getElementById('exIn').value = todayKey();
+  }
   /* ---- 설정: 항목 켜고 끄기, 규격 고치기, 직접 만드는 항목 ---- */
   function setSay(m) { document.getElementById('setStatus').textContent = m; }
   function renderSettings() {
@@ -1229,7 +1408,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       '<div class="recbtns"><button type="button" class="reset" id="cuAdd">항목 만들기</button></div></div></div>';
     box.innerHTML = h;
   }
-  function cfgChanged() { save(); renderSettings(); build(); refresh(); }
+  function cfgChanged() { save(); renderSettings(); build(); refresh(); applyTabs(); }
   document.getElementById('view-set').addEventListener('change', function (e) {
     if (e.target.dataset.shide) {
       if (e.target.checked) delete S.cfg.hide[e.target.dataset.shide]; else S.cfg.hide[e.target.dataset.shide] = true;
@@ -1286,29 +1465,36 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     }
   });
   function showTab(which) {
-    const cal = which === 'cal', man = which === 'man', set = which === 'set';
-    document.getElementById('view-report').hidden = cal || man || set;
+    const cal = which === 'cal', man = which === 'man', set = which === 'set', exp = which === 'exp';
+    document.getElementById('view-report').hidden = cal || man || set || exp;
     document.getElementById('view-cal').hidden = !cal;
     document.getElementById('view-man').hidden = !man;
     document.getElementById('view-set').hidden = !set;
-    document.querySelector('.bar').hidden = cal || man || set;
-    tabR.setAttribute('aria-selected', String(!cal && !man && !set));
+    document.getElementById('view-exp').hidden = !exp;
+    document.querySelector('.bar').hidden = cal || man || set || exp;
+    tabR.setAttribute('aria-selected', String(!cal && !man && !set && !exp));
+    tabE.setAttribute('aria-selected', String(exp));
     tabC.setAttribute('aria-selected', String(cal));
     tabM.setAttribute('aria-selected', String(man));
     tabS.setAttribute('aria-selected', String(set));
     if (cal) renderCal();
     if (man) renderManual();
     if (set) renderSettings();
+    if (exp) renderExp();
     window.scrollTo(0, 0);
   }
   tabR.addEventListener('click', function () { showTab('report'); });
   tabC.addEventListener('click', function () { showTab('cal'); });
   tabM.addEventListener('click', function () { showTab('man'); });
   tabS.addEventListener('click', function () { showTab('set'); });
+  tabE.addEventListener('click', function () { showTab('exp'); });
+  function applyTabs() { tabE.hidden = !on('expiry'); if (!on('expiry') && tabE.getAttribute('aria-selected') === 'true') showTab('report'); }
 
   document.getElementById('today').textContent = shiftDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
   build();
+  initExpForm(); applyTabs(); expTick();
   setInterval(tick, 1000);
+  setInterval(expTick, 15000);
 })();
 </script>
 </body>
