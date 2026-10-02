@@ -98,7 +98,7 @@ h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px
 #copy { min-height: 48px; padding-inline: 22px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font: 700 16px var(--f-body); cursor: pointer; }
 [hidden] { display: none !important; }
 .view { display: flex; flex-direction: column; gap: 14px; }
-.tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 .tabs button { min-height: 44px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 700 15px var(--f-body); cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -140,6 +140,12 @@ h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px
 .notice.pinned .ntext span { font-weight: 700; }
 .pin { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; }
 .pin[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 4px 0 12px; border: 1px solid var(--line); border-radius: 22px; background: var(--bg); font-size: 15px; }
+.chip button { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+.setgrp { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.setgrp h3 { margin: 0 0 4px; font-size: 16px; }
+.setgrp .chk { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .man { border-bottom: 1px solid var(--line); }
 .man:last-of-type { border-bottom: 0; }
 .man summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
@@ -185,6 +191,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     <button type="button" role="tab" id="tab-report" aria-selected="true" aria-controls="view-report">인수인계</button>
     <button type="button" role="tab" id="tab-cal" aria-selected="false" aria-controls="view-cal">달력</button>
     <button type="button" role="tab" id="tab-man" aria-selected="false" aria-controls="view-man">매뉴얼</button>
+    <button type="button" role="tab" id="tab-set" aria-selected="false" aria-controls="view-set">설정</button>
   </nav>
   <div id="view-report" class="view">
     <div id="app" class="view"></div>
@@ -198,6 +205,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   <div id="view-man" class="view" hidden>
     <section class="sheet" id="manualBox"></section>
     <p class="calstatus" id="manStatus" role="status" aria-live="polite"></p>
+  </div>
+  <div id="view-set" class="view" hidden>
+    <section class="sheet" id="setBox"></section>
+    <p class="calstatus" id="setStatus" role="status" aria-live="polite"></p>
   </div>
   <div id="view-cal" class="view" hidden>
     <section class="sheet" id="cal"></section>
@@ -233,8 +244,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     { k: 'transfer', t: '계좌이체', a: { ph: '메모(선택)', num: false }, b: { ph: '금액', num: true }, money: true, sum: true },
     { k: 'refund', t: '부분환불', a: { ph: '내용', num: false }, b: { ph: '금액', num: true }, money: true }
   ];
-  const BAGS = ['5L', '10L', '20L', '50L', '75L'];
-  const STICKERS = [1000, 2000, 3000, 5000, 8000, 11000, 13000];
+  let BAGS = ['5L', '10L', '20L', '50L', '75L'];
+  let STICKERS = [1000, 2000, 3000, 5000, 8000, 11000, 13000];
+  const SECTIONS = [
+    ['notices', '점장님 전달 사항'], ['tasks', '오늘 할 일'], ['coins', '동전'], ['gift', '문화상품권 재고'], ['giftSold', '문화상품권 판매'],
+    ['cig', '담배 보루 판매'], ['bags', '종량제 봉투 판매'], ['stickers', '폐기물 스티커 판매'], ['transfer', '계좌이체'], ['refund', '부분환불'],
+    ['note', '특이사항'], ['next', '다음 근무자에게'], ['compare', '지난 근무와 비교']
+  ];
+  function defCfg() { return { hide: {}, bags: BAGS.slice(), stickers: STICKERS.slice(), custom: [] }; }
 
   function fresh() {
     return {
@@ -253,6 +270,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       me: { name: '', no: '' },
       repFuture: true,
       ov: {},
+      cfg: defCfg(),
+      cc: {},
       notices: [],
       manual: [],
       readNext: {},
@@ -313,7 +332,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     if (!box) return;
     if (S.tasks.d !== todayKey()) { S.tasks = freshTasks(); save(); }
     const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
-    document.getElementById('shift').textContent = shiftText();
+    setT('shift', shiftText());
     box.innerHTML = TASKS.map(function (t) {
       const done = !!S.tasks.done[t.id];
       let cls = '', st = '';
@@ -343,10 +362,34 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     if (raw) {
       const p = JSON.parse(raw), f = fresh();
       Object.keys(f).forEach(function (k) { if (p[k] !== undefined) f[k] = p[k]; });
+      applyCfg(f.cfg);
       if (f.coins.length === COINS.length && f.gift.length === GIFT.length && f.giftSold.length === GIFT.length && f.bags.length === BAGS.length && f.stickers.length === STICKERS.length) S = f;
-      else { S.history = f.history || {}; S.wage = f.wage; S.ov = f.ov; S.notices = f.notices; S.manual = f.manual; S.readNext = f.readNext; S.me = f.me; S.repFuture = f.repFuture; S.cold = f.cold; }
+      else { S.history = f.history || {}; S.wage = f.wage; S.ov = f.ov; S.notices = f.notices; S.manual = f.manual; S.readNext = f.readNext; S.cfg = f.cfg; S.cc = f.cc; S.bags = BAGS.map(function () { return 0; }); S.stickers = STICKERS.map(function () { return 0; }); S.me = f.me; S.repFuture = f.repFuture; S.cold = f.cold; }
     }
   } catch (e) {}
+  function applyCfg(c) {
+    if (!c || typeof c !== 'object') return;
+    if (!c.hide || typeof c.hide !== 'object') c.hide = {};
+    if (!Array.isArray(c.bags)) c.bags = BAGS.slice();
+    if (!Array.isArray(c.stickers)) c.stickers = STICKERS.slice();
+    if (!Array.isArray(c.custom)) c.custom = [];
+    BAGS = c.bags;
+    STICKERS = c.stickers;
+  }
+  function on(id) { return !(S.cfg && S.cfg.hide && S.cfg.hide[id]); }
+  function setT(id, t) { const e = document.getElementById(id); if (e) e.textContent = t; }
+  function cuId(c, j) { return c.id || ('c' + j); }
+  function cuArr(c, j) {
+    const id = cuId(c, j);
+    if (!Array.isArray(S.cc[id])) S.cc[id] = [];
+    while (S.cc[id].length < c.items.length) S.cc[id].push(0);
+    S.cc[id].length = c.items.length;
+    return S.cc[id];
+  }
+  function getArr(g) {
+    if (g.indexOf('cu:') === 0) { const j = Number(g.slice(3)); return cuArr(S.cfg.custom[j], j); }
+    return S[g];
+  }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
   function won(n) { return n.toLocaleString('en-US'); }
@@ -368,17 +411,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       '<p class="livemain" id="liveMain"></p><p class="earn" id="liveEarn" hidden></p><p class="livesub" id="liveSub"></p>' +
       '<div class="track" id="liveTrack" role="progressbar" aria-label="오늘 근무 진행" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="liveFill"></div></div>' +
       '<div id="liveHint"></div></section>';
-    h += '<section class="sheet"><div class="sh"><h2>점장님 전달 사항</h2><span class="tot" id="noticeCnt"></span></div><div id="noticeList"></div>' +
+    if (on('notices')) h += '<section class="sheet"><div class="sh"><h2>점장님 전달 사항</h2><span class="tot" id="noticeCnt"></span></div><div id="noticeList"></div>' +
       '<div class="addrow"><input class="rowin" id="noticeIn" placeholder="전달 사항 한 줄" aria-label="전달 사항 입력" autocomplete="off"><button type="button" class="reset" id="noticeAdd">추가</button></div>' +
       '<button type="button" class="add" id="noticeClear" hidden>완료한 것 지우기</button></section>';
-    h += '<section class="sheet"><div class="sh"><h2>오늘 할 일</h2><span class="tot" id="shift"></span></div><div id="tasks"></div></section>';
-    h += '<section class="sheet"><div class="sh"><h2>동전</h2><span class="tot" id="tot-coins"></span></div>';
-    COINS.forEach(function (c, i) {
-      const lab = c.v + '원 ' + c.n + '개들이';
-      h += '<div class="line"><div class="lab">(' + c.v + '×' + c.n + ')<span class="sub" id="sub-coins-' + i + '"></span></div>' + stepper('coins', i, lab, S.coins[i]) + '</div>';
-    });
-    h += '</section>';
+    if (on('tasks')) h += '<section class="sheet"><div class="sh"><h2>오늘 할 일</h2><span class="tot" id="shift"></span></div><div id="tasks"></div></section>';
+    if (on('coins')) {
+      h += '<section class="sheet"><div class="sh"><h2>동전</h2><span class="tot" id="tot-coins"></span></div>';
+      COINS.forEach(function (c, i) {
+        const lab = c.v + '원 ' + c.n + '개들이';
+        h += '<div class="line"><div class="lab">(' + c.v + '×' + c.n + ')<span class="sub" id="sub-coins-' + i + '"></span></div>' + stepper('coins', i, lab, S.coins[i]) + '</div>';
+      });
+      h += '</section>';
+    }
     [['gift', '문화상품권 재고'], ['giftSold', '문화상품권 판매']].forEach(function (g) {
+      if (!on(g[0])) return;
       h += '<section class="sheet"><div class="sh"><h2>' + g[1] + '</h2><span class="tot" id="tot-' + g[0] + '"></span></div>';
       GIFT.forEach(function (x, i) {
         h += '<div class="line"><div class="lab">' + x.t + '<span class="sub" id="sub-' + g[0] + '-' + i + '"></span></div>' + stepper(g[0], i, g[1] + ' ' + x.t, S[g[0]][i]) + '</div>';
@@ -387,29 +433,43 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     });
     LISTS.forEach(function (L) {
       if (L.k === 'transfer') {
-        h += '<section class="sheet"><div class="sh"><h2>종량제 봉투 판매</h2><span class="tot" id="tot-bags"></span></div>';
-        BAGS.forEach(function (b, i) {
-          h += '<div class="line"><div class="lab">' + b + '</div>' + stepper('bags', i, '종량제 봉투 ' + b, S.bags[i]) + '</div>';
-        });
-        h += '</section><section class="sheet"><div class="sh"><h2>폐기물 스티커 판매</h2><span class="tot" id="tot-stickers"></span></div>';
-        STICKERS.forEach(function (v, i) {
-          h += '<div class="line"><div class="lab">' + won(v) + '원<span class="sub" id="sub-stickers-' + i + '"></span></div>' + stepper('stickers', i, '폐기물 스티커 ' + won(v) + '원', S.stickers[i]) + '</div>';
-        });
-        h += '</section>';
+        if (on('bags')) {
+          h += '<section class="sheet"><div class="sh"><h2>종량제 봉투 판매</h2><span class="tot" id="tot-bags"></span></div>';
+          BAGS.forEach(function (b, i) {
+            h += '<div class="line"><div class="lab">' + esc(b) + '</div>' + stepper('bags', i, '종량제 봉투 ' + b, S.bags[i]) + '</div>';
+          });
+          h += '</section>';
+        }
+        if (on('stickers')) {
+          h += '<section class="sheet"><div class="sh"><h2>폐기물 스티커 판매</h2><span class="tot" id="tot-stickers"></span></div>';
+          STICKERS.forEach(function (v, i) {
+            h += '<div class="line"><div class="lab">' + won(v) + '원<span class="sub" id="sub-stickers-' + i + '"></span></div>' + stepper('stickers', i, '폐기물 스티커 ' + won(v) + '원', S.stickers[i]) + '</div>';
+          });
+          h += '</section>';
+        }
       }
+      if (!on(L.k)) return;
       h += '<section class="sheet"><div class="sh"><h2>' + L.t + '</h2><span class="tot" id="cnt-' + L.k + '"></span></div>' +
         '<div class="rows" id="rows-' + L.k + '"></div>' +
         '<button type="button" class="add" data-add="' + L.k + '">+ 한 줄 추가</button>';
       if (L.names) h += '<datalist id="dl-' + L.k + '"></datalist>';
       h += '</section>';
     });
-    h += '<section class="sheet"><div class="sh"><h2>특이사항</h2></div><textarea class="note" id="note" placeholder="점장님께 전할 말을 적어요. 예: 폐기 상품, 손님 문의, 고장 난 물건" aria-label="특이사항"></textarea></section>';
-    h += '<section class="sheet"><div class="sh"><h2>다음 근무자에게</h2><button type="button" class="linkbtn" id="nextCopy">이 내용만 복사</button></div><textarea class="note" id="nextNote" placeholder="다음 근무자에게 넘길 일을 적어요. 예: 진열 덜 끝난 곳, 내일 아침 행사 준비, 부족한 재고" aria-label="다음 근무자 인수인계"></textarea></section>';
-    h += '<section class="sheet" id="compare"></section>';
+    S.cfg.custom.forEach(function (c, j) {
+      const arr = cuArr(c, j);
+      h += '<section class="sheet"><div class="sh"><h2>' + esc(c.t) + '</h2><span class="tot" id="tot-cu' + j + '"></span></div>';
+      c.items.forEach(function (n, i) {
+        h += '<div class="line"><div class="lab">' + esc(n) + '</div>' + stepper('cu:' + j, i, c.t + ' ' + n, arr[i]) + '</div>';
+      });
+      h += '</section>';
+    });
+    if (on('note')) h += '<section class="sheet"><div class="sh"><h2>특이사항</h2></div><textarea class="note" id="note" placeholder="점장님께 전할 말을 적어요. 예: 폐기 상품, 손님 문의, 고장 난 물건" aria-label="특이사항"></textarea></section>';
+    if (on('next')) h += '<section class="sheet"><div class="sh"><h2>다음 근무자에게</h2><button type="button" class="linkbtn" id="nextCopy">이 내용만 복사</button></div><textarea class="note" id="nextNote" placeholder="다음 근무자에게 넘길 일을 적어요. 예: 진열 덜 끝난 곳, 내일 아침 행사 준비, 부족한 재고" aria-label="다음 근무자 인수인계"></textarea></section>';
+    if (on('compare')) h += '<section class="sheet" id="compare"></section>';
     app.innerHTML = h;
-    document.getElementById('note').value = S.note || '';
-    document.getElementById('nextNote').value = S.next || '';
-    LISTS.forEach(function (L) { renderRows(L.k); renderNames(L.k); });
+    if (on('note')) document.getElementById('note').value = S.note || '';
+    if (on('next')) document.getElementById('nextNote').value = S.next || '';
+    LISTS.forEach(function (L) { if (on(L.k)) { renderRows(L.k); renderNames(L.k); } });
     document.getElementById('showEmpty').checked = !!S.showEmpty;
     renderTasks();
     renderNotices();
@@ -449,33 +509,56 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   }
 
   function text() {
-    let o = ['점장님! 근무교대 했습니다!', '', '<동전>'];
-    COINS.forEach(function (c, i) { o.push('(' + c.v + '×' + c.n + ') - ' + S.coins[i] + '개'); });
-    o.push('', '<문화상품권 재고>');
-    GIFT.forEach(function (g, i) { o.push(g.t + ' - ' + S.gift[i] + '장'); });
-    const sold = GIFT.map(function (g, i) { return S.giftSold[i] > 0 ? g.t + ' - ' + S.giftSold[i] + '장' : null; }).filter(Boolean);
-    if (sold.length) { o.push('', '<문화상품권 판매>'); o = o.concat(sold); }
-    else if (S.showEmpty) o.push('', '<문화상품권 판매>', '없음');
+    let o = ['점장님! 근무교대 했습니다!'];
+    const none = function (t) { if (S.showEmpty) o.push('', '<' + t + '>', '없음'); };
+    if (on('coins')) {
+      o.push('', '<동전>');
+      COINS.forEach(function (c, i) { o.push('(' + c.v + '×' + c.n + ') - ' + S.coins[i] + '개'); });
+    }
+    if (on('gift')) {
+      o.push('', '<문화상품권 재고>');
+      GIFT.forEach(function (g, i) { o.push(g.t + ' - ' + S.gift[i] + '장'); });
+    }
+    if (on('giftSold')) {
+      const sold = GIFT.map(function (g, i) { return S.giftSold[i] > 0 ? g.t + ' - ' + S.giftSold[i] + '장' : null; }).filter(Boolean);
+      if (sold.length) { o.push('', '<문화상품권 판매>'); o = o.concat(sold); }
+      else none('문화상품권 판매');
+    }
     LISTS.forEach(function (L) {
       if (L.k === 'transfer') {
-        const bl = BAGS.map(function (b, i) { return S.bags[i] > 0 ? b + ' - ' + S.bags[i] : null; }).filter(Boolean);
-        if (bl.length) { o.push('', '<종량제 봉투 판매>'); o = o.concat(bl); }
-        else if (S.showEmpty) o.push('', '<종량제 봉투 판매>', '없음');
-        const sl = STICKERS.map(function (v, i) { return S.stickers[i] > 0 ? won(v) + ' - ' + S.stickers[i] : null; }).filter(Boolean);
-        if (sl.length) { o.push('', '<폐기물 스티커 판매>'); o = o.concat(sl); }
-        else if (S.showEmpty) o.push('', '<폐기물 스티커 판매>', '없음');
+        if (on('bags')) {
+          const bl = BAGS.map(function (b, i) { return S.bags[i] > 0 ? b + ' - ' + S.bags[i] : null; }).filter(Boolean);
+          if (bl.length) { o.push('', '<종량제 봉투 판매>'); o = o.concat(bl); }
+          else none('종량제 봉투 판매');
+        }
+        if (on('stickers')) {
+          const sl = STICKERS.map(function (v, i) { return S.stickers[i] > 0 ? won(v) + ' - ' + S.stickers[i] : null; }).filter(Boolean);
+          if (sl.length) { o.push('', '<폐기물 스티커 판매>'); o = o.concat(sl); }
+          else none('폐기물 스티커 판매');
+        }
       }
+      if (!on(L.k)) return;
       const rows = validRows(L);
       if (rows.length && L.sum) o.push('', '<' + L.t + '>', fmt(String(sumOf(rows))) + '원');
       else if (rows.length) { o.push('', '<' + L.t + '>'); rows.forEach(function (r) { o.push(lineOf(L, r)); }); }
-      else if (S.showEmpty) o.push('', '<' + L.t + '>', '없음');
+      else none(L.t);
     });
-    const cold = S.tasks.d === todayKey() ? S.tasks : { done: {}, time: '' };
-    if (cold.time || cold.done.cold) {
-      o.push('', '<저온 2차 물류>', (cold.time ? cold.time + ' 도착, ' : '') + (cold.done.cold ? '정리 완료' : '정리 전'));
-    } else if (S.showEmpty) o.push('', '<저온 2차 물류>', '없음');
-    if ((S.note || '').trim()) o.push('', '<특이사항>', S.note.trim());
-    else if (S.showEmpty) o.push('', '<특이사항>', '없음');
+    S.cfg.custom.forEach(function (c, j) {
+      const arr = cuArr(c, j);
+      const cl = c.items.map(function (n, i) { return arr[i] > 0 ? n + ' - ' + arr[i] : null; }).filter(Boolean);
+      if (cl.length) { o.push('', '<' + c.t + '>'); o = o.concat(cl); }
+      else none(c.t);
+    });
+    if (on('tasks')) {
+      const cold = S.tasks.d === todayKey() ? S.tasks : { done: {}, time: '' };
+      if (cold.time || cold.done.cold) {
+        o.push('', '<저온 2차 물류>', (cold.time ? cold.time + ' 도착, ' : '') + (cold.done.cold ? '정리 완료' : '정리 전'));
+      } else none('저온 2차 물류');
+    }
+    if (on('note')) {
+      if ((S.note || '').trim()) o.push('', '<특이사항>', S.note.trim());
+      else none('특이사항');
+    }
     return o.join('\n');
   }
 
@@ -483,28 +566,31 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     let ct = 0;
     COINS.forEach(function (c, i) {
       const v = c.v * c.n * S.coins[i]; ct += v;
-      document.getElementById('sub-coins-' + i).textContent = '= ' + won(v) + '원';
+      setT('sub-coins-' + i, '= ' + won(v) + '원');
     });
-    document.getElementById('tot-coins').textContent = '합계 ' + won(ct) + '원';
+    setT('tot-coins', '합계 ' + won(ct) + '원');
     ['gift', 'giftSold'].forEach(function (g) {
       let t = 0;
       GIFT.forEach(function (x, i) {
         const v = x.v * S[g][i]; t += v;
-        document.getElementById('sub-' + g + '-' + i).textContent = '= ' + won(v) + '원';
+        setT('sub-' + g + '-' + i, '= ' + won(v) + '원');
       });
-      document.getElementById('tot-' + g).textContent = '합계 ' + won(t) + '원';
+      setT('tot-' + g, '합계 ' + won(t) + '원');
     });
     LISTS.forEach(function (L) {
       const vr = validRows(L);
-      document.getElementById('cnt-' + L.k).textContent = L.sum && vr.length ? '합계 ' + won(sumOf(vr)) + '원' : vr.length + '건';
+      setT('cnt-' + L.k, L.sum && vr.length ? '합계 ' + won(sumOf(vr)) + '원' : vr.length + '건');
     });
-    document.getElementById('tot-bags').textContent = S.bags.reduce(function (a, b) { return a + b; }, 0) + '장';
+    setT('tot-bags', S.bags.reduce(function (a, b) { return a + b; }, 0) + '개');
     let stt = 0;
     STICKERS.forEach(function (v, i) {
       stt += v * S.stickers[i];
-      document.getElementById('sub-stickers-' + i).textContent = '= ' + won(v * S.stickers[i]) + '원';
+      setT('sub-stickers-' + i, '= ' + won(v * S.stickers[i]) + '원');
     });
-    document.getElementById('tot-stickers').textContent = '합계 ' + won(stt) + '원';
+    setT('tot-stickers', '합계 ' + won(stt) + '원');
+    S.cfg.custom.forEach(function (c, j) {
+      setT('tot-cu' + j, cuArr(c, j).reduce(function (a, b) { return a + b; }, 0) + '개');
+    });
     document.getElementById('preview').textContent = text();
     renderCompare();
     save();
@@ -516,8 +602,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     if (!b) return;
     if (b.dataset.act) {
       const st = b.closest('.stepper'), g = st.dataset.group, i = Number(st.dataset.i);
-      S[g][i] = Math.max(0, S[g][i] + (b.dataset.act === 'inc' ? 1 : -1));
-      st.querySelector('input').value = S[g][i];
+      const arr = getArr(g);
+      arr[i] = Math.max(0, arr[i] + (b.dataset.act === 'inc' ? 1 : -1));
+      st.querySelector('input').value = arr[i];
       refresh();
     } else if (b.dataset.add) {
       const k = b.dataset.add;
@@ -569,7 +656,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     } else if (el.closest('.stepper')) {
       const st = el.closest('.stepper');
       const n = Number(digits(el.value)) || 0;
-      S[st.dataset.group][Number(st.dataset.i)] = n;
+      getArr(st.dataset.group)[Number(st.dataset.i)] = n;
       refresh();
     } else if (el.dataset.k) {
       S.rows[el.dataset.k][Number(el.dataset.i)][el.dataset.f] = el.value;
@@ -602,7 +689,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   app.addEventListener('focusout', function (e) {
     if (e.target.closest('.stepper') && e.target.tagName === 'INPUT') {
       const st = e.target.closest('.stepper');
-      e.target.value = S[st.dataset.group][Number(st.dataset.i)];
+      e.target.value = getArr(st.dataset.group)[Number(st.dataset.i)];
     }
   });
 
@@ -655,6 +742,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     S.giftSold = GIFT.map(function () { return 0; });
     S.bags = BAGS.map(function () { return 0; });
     S.stickers = STICKERS.map(function () { return 0; });
+    S.cc = {};
     S.tasks = freshTasks();
     S.note = '';
     S.next = '';
@@ -750,8 +838,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       const d = b - a;
       rows += '<div class="cmp ' + (d < 0 ? 'down' : 'up') + '"><span>' + lab + '</span><b>' + a + ' → ' + b + unit + ' (' + (d < 0 ? '▼' : '▲') + Math.abs(d) + ')</b></div>';
     }
-    COINS.forEach(function (c, i) { row('동전 (' + c.v + '×' + c.n + ')', pv.r.coins[i] || 0, S.coins[i], '개'); });
-    GIFT.forEach(function (g, i) {
+    if (on('coins')) COINS.forEach(function (c, i) { row('동전 (' + c.v + '×' + c.n + ')', pv.r.coins[i] || 0, S.coins[i], '개'); });
+    if (on('gift')) GIFT.forEach(function (g, i) {
       const a = pv.r.gift[i] || 0, b = S.gift[i], sold = S.giftSold[i], drop = a - b;
       row('상품권 ' + g.t, a, b, '장');
       if (sold > 0 && drop < sold) {
@@ -1017,7 +1105,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 
   const bkBox = document.getElementById('bkBox');
   document.getElementById('bkCopy').addEventListener('click', function () {
-    const j = JSON.stringify({ v: 4, history: S.history, ov: S.ov, wage: S.wage, notices: S.notices, manual: S.manual, readNext: S.readNext, me: S.me, repFuture: S.repFuture, cold: S.cold });
+    const j = JSON.stringify({ v: 4, history: S.history, ov: S.ov, wage: S.wage, notices: S.notices, manual: S.manual, readNext: S.readNext, cfg: S.cfg, me: S.me, repFuture: S.repFuture, cold: S.cold });
     bkBox.value = j;
     const fb = function () { bkBox.focus(); bkBox.select(); say('백업 글이 선택됐어요. 길게 눌러 복사하세요.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(j).then(function () { say('백업을 복사했어요. 메모장이나 카톡 나에게 보내기에 붙여넣어 두세요.'); }, fb);
@@ -1059,6 +1147,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
         S.manual = o.manual.filter(function (x) { return x && typeof x.t === 'string' && typeof x.b === 'string'; }).map(function (x) { return { t: x.t, b: x.b }; });
       }
       if (o.readNext && typeof o.readNext === 'object') S.readNext = o.readNext;
+      if (o.cfg && typeof o.cfg === 'object' && Array.isArray(o.cfg.bags) && Array.isArray(o.cfg.stickers)) {
+        S.cfg = {
+          hide: (o.cfg.hide && typeof o.cfg.hide === 'object') ? o.cfg.hide : {},
+          bags: o.cfg.bags.map(String),
+          stickers: o.cfg.stickers.map(Number).filter(Boolean),
+          custom: (Array.isArray(o.cfg.custom) ? o.cfg.custom : []).filter(function (c) { return c && typeof c.t === 'string' && Array.isArray(c.items); }).map(function (c, k) { return { id: String(c.id || 'c' + k), t: c.t, items: c.items.map(String) }; })
+        };
+        applyCfg(S.cfg);
+        S.bags = BAGS.map(function () { return 0; });
+        S.stickers = STICKERS.map(function () { return 0; });
+        S.cc = {};
+        build(); refresh();
+      }
       save(); renderCal(); renderNotices(); renderManual(); tick();
       say(n + '일치 기록과 설정을 불러왔어요.');
     } catch (err) {
@@ -1066,7 +1167,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     }
   });
 
-  const tabR = document.getElementById('tab-report'), tabC = document.getElementById('tab-cal'), tabM = document.getElementById('tab-man');
+  const tabR = document.getElementById('tab-report'), tabC = document.getElementById('tab-cal'), tabM = document.getElementById('tab-man'), tabS = document.getElementById('tab-set');
   /* ---- 업무 매뉴얼 ---- */
   let manEdit = -1;
   function manSay(m) { document.getElementById('manStatus').textContent = m; }
@@ -1101,22 +1202,109 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       S.manual.splice(Number(b.dataset.mdel), 1); manEdit = -1; save(); renderManual();
     }
   });
+  /* ---- 설정: 항목 켜고 끄기, 규격 고치기, 직접 만드는 항목 ---- */
+  function setSay(m) { document.getElementById('setStatus').textContent = m; }
+  function renderSettings() {
+    const box = document.getElementById('setBox');
+    if (!box) return;
+    let h = '<div class="sh"><h2>항목 설정</h2></div><p class="none">우리 가게에 없는 항목은 끄고, 필요한 항목은 직접 만들 수 있어요. 끈 항목은 화면과 보고 글에서 빠져요.</p>';
+    h += '<div class="setgrp"><h3>보이는 항목</h3>' + SECTIONS.map(function (x) {
+      return '<label class="chk"><input type="checkbox" data-shide="' + x[0] + '"' + (on(x[0]) ? ' checked' : '') + '> ' + x[1] + '</label>';
+    }).join('') + '</div>';
+    h += '<div class="setgrp"><h3>종량제 봉투 규격</h3><div class="chips">' + S.cfg.bags.map(function (b, i) {
+      return '<span class="chip">' + esc(b) + '<button type="button" data-sdel="bags:' + i + '" aria-label="' + esc(b) + ' 빼기">×</button></span>';
+    }).join('') + '</div><div class="addrow"><input class="rowin" id="bagIn" placeholder="예: 3L" aria-label="추가할 봉투 규격" autocomplete="off"><button type="button" class="reset" data-sadd="bags">추가</button></div></div>';
+    h += '<div class="setgrp"><h3>폐기물 스티커 금액</h3><div class="chips">' + S.cfg.stickers.map(function (v, i) {
+      return '<span class="chip">' + won(v) + '원<button type="button" data-sdel="stickers:' + i + '" aria-label="' + won(v) + '원 빼기">×</button></span>';
+    }).join('') + '</div><div class="addrow"><input class="rowin num" id="stkIn" inputmode="numeric" placeholder="예: 4000" aria-label="추가할 스티커 금액" autocomplete="off"><button type="button" class="reset" data-sadd="stickers">추가</button></div></div>';
+    h += '<div class="setgrp"><h3>내가 만드는 항목</h3>';
+    h += S.cfg.custom.length ? S.cfg.custom.map(function (c, j) {
+      return '<div class="man"><b>' + esc(c.t) + '</b><div class="chips">' + c.items.map(function (n, i) {
+        return '<span class="chip">' + esc(n) + '<button type="button" data-sdel="cu:' + j + ':' + i + '" aria-label="' + esc(n) + ' 빼기">×</button></span>';
+      }).join('') + '</div><div class="addrow"><input class="rowin" id="cuIn' + j + '" placeholder="세부 항목 추가" aria-label="' + esc(c.t) + ' 세부 항목" autocomplete="off"><button type="button" class="reset" data-sadd="cu:' + j + '">추가</button></div>' +
+        '<button type="button" class="linkbtn" data-sdel="cusec:' + j + '">이 항목 통째로 지우기</button></div>';
+    }).join('') : '<p class="none">예: 제목 "택배 접수", 세부 항목 "일반 택배, 반값 택배"처럼 적으면 개수 버튼이 생겨요.</p>';
+    h += '<div class="mform"><input class="rowin" id="cuT" placeholder="새 항목 제목 (예: 택배 접수)" aria-label="새 항목 제목" autocomplete="off">' +
+      '<input class="rowin" id="cuI" placeholder="세부 항목을 쉼표로 (예: 일반 택배, 반값 택배)" aria-label="세부 항목" autocomplete="off">' +
+      '<div class="recbtns"><button type="button" class="reset" id="cuAdd">항목 만들기</button></div></div></div>';
+    box.innerHTML = h;
+  }
+  function cfgChanged() { save(); renderSettings(); build(); refresh(); }
+  document.getElementById('view-set').addEventListener('change', function (e) {
+    if (e.target.dataset.shide) {
+      if (e.target.checked) delete S.cfg.hide[e.target.dataset.shide]; else S.cfg.hide[e.target.dataset.shide] = true;
+      cfgChanged();
+    }
+  });
+  document.getElementById('view-set').addEventListener('click', function (e) {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.sadd) {
+      const k = b.dataset.sadd;
+      if (k === 'bags') {
+        const v = document.getElementById('bagIn').value.trim();
+        if (!v) return;
+        if (S.cfg.bags.indexOf(v) >= 0) { setSay('이미 있는 규격이에요.'); return; }
+        S.cfg.bags.push(v); S.bags.push(0);
+      } else if (k === 'stickers') {
+        const v = Number(digits(document.getElementById('stkIn').value));
+        if (!v) return;
+        if (S.cfg.stickers.indexOf(v) >= 0) { setSay('이미 있는 금액이에요.'); return; }
+        const pairs = S.cfg.stickers.map(function (x, i) { return { v: x, c: S.stickers[i] || 0 }; });
+        pairs.push({ v: v, c: 0 });
+        pairs.sort(function (a, c) { return a.v - c.v; });
+        S.cfg.stickers = pairs.map(function (x) { return x.v; });
+        S.stickers = pairs.map(function (x) { return x.c; });
+        STICKERS = S.cfg.stickers;
+      } else if (k.indexOf('cu:') === 0) {
+        const j = Number(k.slice(3)), inp = document.getElementById('cuIn' + j), v = inp.value.trim();
+        if (!v) return;
+        S.cfg.custom[j].items.push(v);
+      }
+      setSay('');
+      cfgChanged();
+    } else if (b.dataset.sdel) {
+      const p = b.dataset.sdel.split(':');
+      if (p[0] === 'bags') { S.cfg.bags.splice(Number(p[1]), 1); S.bags.splice(Number(p[1]), 1); }
+      else if (p[0] === 'stickers') { S.cfg.stickers.splice(Number(p[1]), 1); S.stickers.splice(Number(p[1]), 1); }
+      else if (p[0] === 'cu') {
+        const c = S.cfg.custom[Number(p[1])], arr = cuArr(c, Number(p[1]));
+        c.items.splice(Number(p[2]), 1); arr.splice(Number(p[2]), 1);
+      } else if (p[0] === 'cusec') {
+        const j = Number(p[1]), id = cuId(S.cfg.custom[j], j);
+        S.cfg.custom.splice(j, 1);
+        delete S.cc[id];
+      }
+      cfgChanged();
+    } else if (b.id === 'cuAdd') {
+      const t = document.getElementById('cuT').value.trim();
+      const items = document.getElementById('cuI').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+      if (!t || !items.length) { setSay('제목과 세부 항목을 하나 이상 적어 주세요.'); return; }
+      S.cfg.custom.push({ id: 'c' + Date.now(), t: t, items: items });
+      setSay('');
+      cfgChanged();
+    }
+  });
   function showTab(which) {
-    const cal = which === 'cal', man = which === 'man';
-    document.getElementById('view-report').hidden = cal || man;
+    const cal = which === 'cal', man = which === 'man', set = which === 'set';
+    document.getElementById('view-report').hidden = cal || man || set;
     document.getElementById('view-cal').hidden = !cal;
     document.getElementById('view-man').hidden = !man;
-    document.querySelector('.bar').hidden = cal || man;
-    tabR.setAttribute('aria-selected', String(!cal && !man));
+    document.getElementById('view-set').hidden = !set;
+    document.querySelector('.bar').hidden = cal || man || set;
+    tabR.setAttribute('aria-selected', String(!cal && !man && !set));
     tabC.setAttribute('aria-selected', String(cal));
     tabM.setAttribute('aria-selected', String(man));
+    tabS.setAttribute('aria-selected', String(set));
     if (cal) renderCal();
     if (man) renderManual();
+    if (set) renderSettings();
     window.scrollTo(0, 0);
   }
   tabR.addEventListener('click', function () { showTab('report'); });
   tabC.addEventListener('click', function () { showTab('cal'); });
   tabM.addEventListener('click', function () { showTab('man'); });
+  tabS.addEventListener('click', function () { showTab('set'); });
 
   document.getElementById('today').textContent = shiftDate().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
   build();
