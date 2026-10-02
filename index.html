@@ -114,6 +114,14 @@ h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px
 .exb { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .exb .reset { min-height: 44px; }
 .exb .rm { min-width: 44px; margin-left: auto; }
+.phgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.ph { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+.ph img { display: block; width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+.ph .rm { position: absolute; top: 2px; right: 2px; min-width: 44px; min-height: 44px; border: 0; background: rgba(0, 0, 0, 0.55); color: #fff; border-radius: 8px; font-size: 20px; }
+.phbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: 500 14px var(--f-body); cursor: pointer; }
+.phrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.lightbox { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0, 0, 0, 0.88); }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .exgrid .rowin, #exName { width: 100%; box-sizing: border-box; }
 .exgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .exsum { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0 0; font-size: 14px; }
@@ -290,7 +298,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   const SECTIONS = [
     ['notices', '점장님 전달 사항'], ['tasks', '오늘 할 일'], ['coins', '동전'], ['gift', '문화상품권 재고'], ['giftSold', '문화상품권 판매'],
     ['cig', '담배 보루 판매'], ['bags', '종량제 봉투 판매'], ['stickers', '폐기물 스티커 판매'], ['transfer', '계좌이체'], ['refund', '부분환불'],
-    ['note', '특이사항'], ['next', '다음 근무자에게'], ['compare', '지난 근무와 비교'], ['expiry', '소비기한 탭']
+    ['note', '특이사항'], ['next', '다음 근무자에게'], ['compare', '지난 근무와 비교'], ['expiry', '소비기한 탭'], ['photos', '사진']
   ];
   function defCfg() { return { hide: {}, bags: BAGS.slice(), stickers: STICKERS.slice(), custom: [] }; }
 
@@ -506,6 +514,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       });
       h += '</section>';
     });
+    if (on('photos')) h += '<section class="sheet" id="photoBox"></section>';
     if (on('note')) h += '<section class="sheet"><div class="sh"><h2>특이사항</h2></div><textarea class="note" id="note" placeholder="점장님께 전할 말을 적어요. 예: 폐기 상품, 손님 문의, 고장 난 물건" aria-label="특이사항"></textarea></section>';
     if (on('next')) h += '<section class="sheet"><div class="sh"><h2>다음 근무자에게</h2><button type="button" class="linkbtn" id="nextCopy">이 내용만 복사</button></div><textarea class="note" id="nextNote" placeholder="다음 근무자에게 넘길 일을 적어요. 예: 진열 덜 끝난 곳, 내일 아침 행사 준비, 부족한 재고" aria-label="다음 근무자 인수인계"></textarea></section>';
     if (on('compare')) h += '<section class="sheet" id="compare"></section>';
@@ -516,6 +525,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     document.getElementById('showEmpty').checked = !!S.showEmpty;
     renderTasks();
     renderNotices();
+    renderPhotos();
     liveHint = null;
     tick();
     refresh();
@@ -656,6 +666,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       const ins = document.querySelectorAll('#rows-' + k + ' .row:last-child .rowin');
       if (ins[0]) ins[0].focus();
       refresh();
+    } else if (b.dataset.phdel) {
+      phDelete(b.dataset.phdel);
+    } else if (b.id === 'phShare') {
+      phShare();
     } else if (b.id === 'nextCopy') {
       const nt = (S.next || '').trim();
       if (!nt) { say('적은 내용이 없어요.'); return; }
@@ -707,7 +721,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     }
   });
   app.addEventListener('change', function (e) {
-    if (e.target.dataset.nread !== undefined) {
+    if (e.target.id === 'phIn') {
+      phAdd(e.target.files);
+      e.target.value = '';
+    } else if (e.target.dataset.nread !== undefined) {
       S.readNext[e.target.dataset.nread] = e.target.checked;
       save();
     } else if (e.target.dataset.nchk !== undefined) {
@@ -1067,6 +1084,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       '<div class="recbtns"><button type="button" class="reset" data-ov="work">이 시간으로 근무</button><button type="button" class="reset" data-ov="off">쉬는 날로 표시</button>' +
       (ov ? '<button type="button" class="reset" data-ov="reset">정기 근무로 되돌리기</button>' : '') + '</div>' +
       '<p class="none">대타를 가거나 쉬게 된 날, 시간이 달라진 날에 써요. 끝이 시작보다 이르면 다음 날 새벽으로 계산해요.</p></div>';
+    const dayPh = PH.filter(function (x) { return x.d === calSel; });
+    if (dayPh.length) h += '<div class="edit"><h3>그날 올린 사진 ' + dayPh.length + '장</h3><div class="phgrid">' + dayPh.map(function (x) { return '<div class="ph"><img src="' + phUrl(x) + '" alt="' + shortDate(x.d) + ' 사진" data-phview="' + x.id + '"></div>'; }).join('') + '</div></div>';
     box.innerHTML = h;
     if (r) document.getElementById('recText').textContent = r.text;
   }
@@ -1252,6 +1271,119 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     } else if (b.dataset.mdel !== undefined) {
       S.manual.splice(Number(b.dataset.mdel), 1); manEdit = -1; save(); renderManual();
     }
+  });
+  /* ---- 사진 (IndexedDB에 줄여서 저장) ---- */
+  let PH = [], phDb = null, phOk = true;
+  const phUrls = {};
+  function phUrl(rec) { if (!phUrls[rec.id]) phUrls[rec.id] = URL.createObjectURL(rec.blob); return phUrls[rec.id]; }
+  function phOpen() {
+    return new Promise(function (res) {
+      try {
+        const r = indexedDB.open('handover-photos', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('p', { keyPath: 'id' }); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { res(null); };
+      } catch (err) { res(null); }
+    });
+  }
+  function phTx(mode, fn) {
+    return new Promise(function (res) {
+      if (!phDb) { res(null); return; }
+      try {
+        const tx = phDb.transaction('p', mode), st = tx.objectStore('p'), rq = fn(st);
+        tx.oncomplete = function () { res(rq ? rq.result : true); };
+        tx.onerror = function () { res(null); };
+        tx.onabort = function () { res(null); };
+      } catch (err) { res(null); }
+    });
+  }
+  function phShrink(file) {
+    return new Promise(function (res, rej) {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        const sc = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { if (b) res(b); else rej(new Error('blob')); }, 'image/jpeg', 0.75);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('img')); };
+      img.src = url;
+    });
+  }
+  function phSay(m) { const e = document.getElementById('phStatus'); if (e) e.textContent = m; }
+  function renderPhotos() {
+    const box = document.getElementById('photoBox');
+    if (!box) return;
+    const today = PH.filter(function (x) { return x.d === todayKey(); });
+    box.innerHTML = '<div class="sh"><h2>사진</h2><span class="tot">' + (today.length ? today.length + '장' : '') + '</span></div>' +
+      '<p class="none">진열 사진처럼 점장님께 보낼 사진을 올려 두는 곳이에요. 올리면 자동으로 작게 줄여 저장해요.</p>' +
+      '<div class="phrow"><label class="phbtn">사진 추가<input type="file" id="phIn" accept="image/*" multiple hidden></label>' +
+      (today.length ? '<button type="button" class="phbtn" id="phShare">카톡 등으로 보내기</button>' : '') + '</div>' +
+      (today.length ? '<div class="phgrid">' + today.map(function (x) {
+        return '<div class="ph"><img src="' + phUrl(x) + '" alt="오늘 올린 사진" data-phview="' + x.id + '"><button type="button" class="rm" data-phdel="' + x.id + '" aria-label="사진 지우기">×</button></div>';
+      }).join('') + '</div>' : '') +
+      '<p class="calstatus" id="phStatus" role="status" aria-live="polite">' + (phOk ? '' : '이 브라우저에서는 사진을 저장할 수 없어서, 창을 닫으면 사라져요.') + '</p>';
+  }
+  function phAdd(files) {
+    const list = Array.prototype.slice.call(files || []).filter(function (f) { return /^image\//.test(f.type); });
+    if (!list.length) { phSay('사진 파일을 골라 주세요.'); return; }
+    phSay('사진을 줄이는 중이에요…');
+    let chain = Promise.resolve(), fail = 0;
+    list.forEach(function (f) {
+      chain = chain.then(function () { return phShrink(f); }).then(function (blob) {
+        const rec = { id: 'p' + Date.now() + Math.floor(Math.random() * 1000), d: todayKey(), at: Date.now(), blob: blob };
+        PH.push(rec);
+        return phTx('readwrite', function (st) { return st.put(rec); });
+      }).catch(function () { fail++; });
+    });
+    chain.then(function () {
+      renderPhotos();
+      try { renderDetail(); } catch (err) {}
+      phSay(fail ? fail + '장은 올리지 못했어요.' : list.length + '장 올렸어요.');
+    });
+  }
+  function phDelete(id) {
+    PH = PH.filter(function (x) { return x.id !== id; });
+    if (phUrls[id]) { URL.revokeObjectURL(phUrls[id]); delete phUrls[id]; }
+    phTx('readwrite', function (st) { return st.delete(id); });
+    renderPhotos();
+    try { renderDetail(); } catch (err) {}
+  }
+  function phShare() {
+    const today = PH.filter(function (x) { return x.d === todayKey(); });
+    const files = today.map(function (x, i) { return new File([x.blob], todayKey() + '_' + (i + 1) + '.jpg', { type: 'image/jpeg' }); });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: files })) {
+        navigator.share({ files: files, title: '근무교대 사진' }).catch(function () {});
+        return;
+      }
+    } catch (err) {}
+    phSay('이 브라우저는 바로 보내기를 지원하지 않아요. 사진을 길게 눌러 저장한 뒤 카톡에서 보내 주세요.');
+  }
+  document.addEventListener('click', function (e) {
+    const im = e.target.closest('img[data-phview]');
+    if (im) {
+      const lb = document.createElement('div');
+      lb.className = 'lightbox';
+      lb.innerHTML = '<img src="' + im.src + '" alt="사진 크게 보기">';
+      lb.addEventListener('click', function () { lb.remove(); });
+      document.body.appendChild(lb);
+    }
+  });
+  phOpen().then(function (db) {
+    phDb = db;
+    if (!db) { phOk = false; renderPhotos(); return null; }
+    return phTx('readonly', function (st) { return st.getAll(); }).then(function (all) {
+      const cut = new Date(); cut.setDate(cut.getDate() - 60);
+      const ck = ymd(cut);
+      PH = (all || []).filter(function (x) {
+        if (x.d < ck) { phTx('readwrite', function (st) { return st.delete(x.id); }); return false; }
+        return true;
+      });
+      renderPhotos();
+      if (typeof renderDetail === 'function' && calSel) { try { renderDetail(); } catch (err) {} }
+    });
   });
   /* ---- 소비기한 관리 ---- */
   const EXG = ['지난 상품 · 폐기 대상', '오늘까지', '내일까지', '3일 이내', '그 이후'];
