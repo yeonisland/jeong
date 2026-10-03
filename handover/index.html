@@ -672,8 +672,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
       refresh();
     } else if (b.dataset.phdel) {
       phDelete(b.dataset.phdel);
-    } else if (b.id === 'phShare') {
-      phShare();
+    } else if (b.dataset.phshare !== undefined) {
+      phShare(Number(b.dataset.phshare));
     } else if (b.id === 'nextCopy') {
       const nt = (S.next || '').trim();
       if (!nt) { say('적은 내용이 없어요.'); return; }
@@ -1330,8 +1330,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     box.innerHTML = '<div class="sh"><h2>사진</h2><span class="tot">' + (today.length ? today.length + '장' : '') + '</span></div>' +
       '<p class="none">진열 사진처럼 점장님께 보낼 사진을 올려 두는 곳이에요. 올리면 자동으로 작게 줄여 저장해요.</p>' +
       '<div class="phrow"><label class="phbtn">사진 추가<input type="file" id="phIn" accept="image/*" multiple hidden></label>' +
-      (today.length ? '<button type="button" class="phbtn" id="phShare">카톡 등으로 보내기</button>' : '') + '</div>' +
-      (today.length ? '<div class="phgrid">' + today.map(function (x) {
+      (today.length <= PH_GROUP && today.length ? '<button type="button" class="phbtn" data-phshare="0">카톡 등으로 보내기</button>' : '') + '</div>' +
+      (today.length > PH_GROUP ? '<p class="none">한 번에 보낼 수 있는 사진 수에 제한이 있어서 ' + PH_GROUP + '장씩 나눠 보내요.</p><div class="phrow">' + Array.apply(null, { length: Math.ceil(today.length / PH_GROUP) }).map(function (_, g) {
+        const a = g * PH_GROUP + 1, z = Math.min(today.length, (g + 1) * PH_GROUP);
+        return '<button type="button" class="phbtn" data-phshare="' + g * PH_GROUP + '">' + a + '~' + z + '번 보내기</button>';
+      }).join('') + '</div>' : '') +
+      (today.length ? '<div class="phgrid">' + today.sort(function (a, b) { return a.at - b.at; }).map(function (x) {
         return '<div class="ph"><img src="' + phUrl(x) + '" alt="오늘 올린 사진" data-phview="' + x.id + '"><button type="button" class="rm" data-phdel="' + x.id + '" aria-label="사진 지우기">×</button></div>';
       }).join('') + '</div>' : '') +
       '<p class="calstatus" id="phStatus" role="status" aria-live="polite">' + (phOk ? '' : '이 브라우저에서는 사진을 저장할 수 없어서, 창을 닫으면 사라져요.') + '</p>';
@@ -1361,16 +1365,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
     renderPhotos();
     try { renderDetail(); } catch (err) {}
   }
-  function phShare() {
-    const today = PH.filter(function (x) { return x.d === todayKey(); });
-    const files = today.map(function (x, i) { return new File([x.blob], todayKey() + '_' + (i + 1) + '.jpg', { type: 'image/jpeg' }); });
+  const PH_GROUP = 10;
+  function phShare(start) {
+    const today = PH.filter(function (x) { return x.d === todayKey(); }).sort(function (a, b) { return a.at - b.at; });
+    const part = today.slice(start, start + PH_GROUP);
+    const files = part.map(function (x, i) { return new File([x.blob], todayKey() + '_' + (start + i + 1) + '.jpg', { type: 'image/jpeg' }); });
+    if (!navigator.share) { phSay('이 브라우저는 바로 보내기를 지원하지 않아요. 사진을 눌러 크게 연 뒤 길게 눌러 저장하고 카톡에서 보내 주세요.'); return; }
     try {
-      if (navigator.canShare && navigator.canShare({ files: files })) {
-        navigator.share({ files: files, title: '근무교대 사진' }).catch(function () {});
+      if (navigator.canShare && !navigator.canShare({ files: files })) {
+        phSay('이 브라우저는 사진 보내기를 지원하지 않아요. 사진을 눌러 크게 연 뒤 길게 눌러 저장하고 카톡에서 보내 주세요.');
         return;
       }
-    } catch (err) {}
-    phSay('이 브라우저는 바로 보내기를 지원하지 않아요. 사진을 길게 눌러 저장한 뒤 카톡에서 보내 주세요.');
+      navigator.share({ files: files, title: '근무교대 사진' }).then(function () {
+        phSay((start + 1) + '~' + (start + part.length) + '번 사진을 보냈어요.');
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') { phSay('보내기를 취소했어요.'); return; }
+        phSay('보내지 못했어요 (' + (err && err.name ? err.name : '오류') + '). 사진 수를 줄이거나, 공유가 막힌 화면일 수 있어요. 주소창에 직접 연 페이지(github.io)에서 다시 눌러 보세요.');
+      });
+    } catch (err) {
+      phSay('보내지 못했어요 (' + (err && err.name ? err.name : '오류') + ').');
+    }
   }
   document.addEventListener('click', function (e) {
     const im = e.target.closest('img[data-phview]');
