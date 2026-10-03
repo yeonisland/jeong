@@ -1,6 +1,3 @@
-# 근무 인수인계 웹앱
+# portfolio
 
-편의점 근무 교대 때 보내는 인수인계 글을 만들어 주는 모바일 웹 페이지예요. 설치 없이 `index.html` 하나로 동작해요.
-
-- 기록은 로그인 없이 이 브라우저(localStorage, IndexedDB)에만 저장돼요.
-- 달력 탭 맨 아래에서 백업을 복사해 둘 수 있어요.
+- [근무 인수인계 웹앱](handover/) — 편의점 근무 교대용 인수인계 글 만들기 (`https://yeonisland.github.io/portfolio/handover/`)
